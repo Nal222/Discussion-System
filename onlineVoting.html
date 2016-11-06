@@ -1,0 +1,64 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+<script src="http://code.jquery.com/jquery-migrate-1.2.1.min.js"></script>
+    
+<title>Untitled Document</title>
+<script type="text/javascript">
+function adminClick(){
+
+	if($("#userName").val() == "Nalini" && $("#password").val()=="hello"){
+
+		$("#topicsDropdown").css("visibility", "visible");
+
+	}
+}
+function selectOption(){
+	
+	if($("[name=topicsDropdown]").val()==1){
+		var alternative1 = "Government should have a say in our diets";
+		var alternative2 = "Government should not have a say in our diets";
+		//send alternative1 and alternative2 across to other html page
+		window.location.href = "/onlinevotefirstpage.html?cal=" + alternative1 + "&alternative2=" + alternative2; 
+	}
+	else if($("[name=topicsDropdown]").val()==2){
+		var alternative1 = "";
+		var alternative2 = "";
+	}
+	else if($("[name=topicsDropdown]").val()==1){
+	}
+
+}
+
+
+
+</script>
+</head>
+
+<body>
+<p>ADMIN</p>
+<table width="260" border="0">
+  <tr>
+    <td width="84">User name</td>
+    <td width="166"><input type="text" name="userName" id="userName" /></td>
+  </tr>
+  <tr>
+    <td>Password</td>
+    <td><input type="text" name="password" id="password" /></td>
+  </tr>
+</table>
+<p>
+  <button name="submitButton" id="submitButton" onclick="adminClick()">Submit</button>
+</p>
+<p>&nbsp;</p>
+<p>
+  <select name="topicsDropdown" id="topicsDropdown" onclick = "selectOption()" style = "visibility:hidden;">
+    <option value="1">Should government have a say in our diets?</option>
+    <option value="2">Should cigarette smoking be banned?</option>
+    <option value="3">Should men get paternity leave from work?</option>
+  </select>
+</p>
+</body>
+</html>

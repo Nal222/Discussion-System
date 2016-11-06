@@ -1,0 +1,172 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Untitled Document</title>
+
+	<script src="http://127.0.0.1/socket.io/socket.io.js"></script>
+    <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+    <script src="http://code.jquery.com/jquery-migrate-1.2.1.min.js"></script>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Untitled Document</title>
+    <link href="discussionstyle.css" rel="stylesheet" type="text/css" />
+    
+    <script type="text/javascript">
+	
+        var socket = io.connect('http://127.0.0.1');
+		var commentsMap;
+		var textAreaInfos = {};
+		
+        $(document).ready(
+			function() {
+				socket.on(
+					"updates",
+					function (data) {
+						refreshComments(data);
+					}
+				);
+			
+				//$("body").append(getCommentHtml("", "Add a comment"));
+				$.getJSON("http://127.0.0.1/getdiscussion",
+					function(data){
+						refreshComments(data);
+					}
+				);
+			}
+		);
+		
+		function getCommentHtml(actualCommentString, id, buttonName, showReplyButton){
+			var textAreaText = textAreaInfos[id];
+			return "<div style='margin-left:50px' id='" + id + "'>" + actualCommentString + (showReplyButton==true ? "<button name='replyButton' onclick='replyPressed(this)'>" + buttonName + "</button>" : "") + "<div name='textareaandbuttonsdiv' " + (textAreaText!=undefined?"":"style='display:none'") + "><textarea name='comment' cols='25' rows='5'>" + (textAreaText==undefined?"":textAreaText) + "</textarea><button onclick='appendAndSaveComment(this)' id='submitButton'>submit</button><button onclick='cancelComment(this)'>Cancel</button></div></div>";	
+			
+		
+		}
+		
+		function refreshComments(data)
+		{
+			$("body").empty();
+		
+			commentsMap = {};
+		
+			var rootCommentObject;
+						
+			for(var i = 0; i<data.length; i++)
+			{
+				var commentObject = data[i];
+				commentsMap[commentObject._id] = commentObject;
+				if(commentObject.commentText==""){
+					rootCommentObject = commentObject;
+				}
+			}
+			
+			createCommentHtmlAndAppendToParent(rootCommentObject, $("body"), false);
+		}
+		
+		function createCommentHtmlAndAppendToParent(commentObject, parentJQueryElementToAppendTo, showReplyButton)
+		{
+			var commentJQueryElement = $(getCommentHtml(commentObject.commentText, commentObject._id, "Reply", showReplyButton));
+			
+			var textArea = findFirstTextAreaIn(commentJQueryElement);
+			textArea.keyup(
+				function(){
+					textAreaInfos[commentObject._id] = textArea.val();
+				}
+			);
+			textArea.change(
+				function(){
+					textAreaInfos[commentObject._id] = textArea.val();
+				}
+			);
+			textArea.on(
+				"paste cut",
+				null,
+				function(e){
+					setTimeout(
+						function(){
+							textAreaInfos[commentObject._id] = textArea.val();
+						},
+						0
+					);
+				}	
+			);
+			
+			parentJQueryElementToAppendTo.append(commentJQueryElement);
+			
+			if(commentObject.replyIds != undefined)
+			{
+				for(var i = 0; i<commentObject.replyIds.length; i++){
+					var replyId = commentObject.replyIds[i];
+					createCommentHtmlAndAppendToParent(commentsMap[replyId], commentJQueryElement, true);
+				}
+			}
+		}
+        
+        function addCommentPressed(commentButton){
+            $(commentButton).parent().append($(textareaandbuttonsdiv).show());
+            $(commentButton).hide();
+        }
+        
+        function findFirstTextAreaIn(jQueryElement)
+        {
+            return jQueryElement.find("textarea").first();
+        }
+        
+        function findFirstReplyButtonIn(jQueryElement)
+        {
+            return jQueryElement.find("button[name=replyButton]").first();
+        }
+        
+        function appendAndSaveComment(submitButton)
+        {
+			//TODO: move some of this code to the recursive "appendComment" function
+			/*
+            var textAreaAndButtonsDiv = $(submitButton).parent();
+            var textArea = findFirstTextAreaIn(textAreaAndButtonsDiv);
+			var commentText = textArea.val();
+			var commentHtml = getCommentHtml(commentText, "Reply");
+            
+			var commentAsJQueryElement = $($.parseHTML(commentHtml));
+            
+			commentAsJQueryElement.insertAfter($(submitButton).parent());
+            
+			textArea.val("");
+            
+			textAreaAndButtonsDiv.hide();
+            
+			showFirstReplyButtonInParentsParent(submitButton);
+			*/
+			
+			var textAreaAndButtonsDiv = $(submitButton).parent();
+			var parentCommentId = textAreaAndButtonsDiv.parent().attr("id");
+			//alert("Parent comment id being sent to server is " + parentCommentId);
+            var textArea = findFirstTextAreaIn(textAreaAndButtonsDiv);
+			var commentTextValue = textArea.val();
+			socket.emit('newCommentChannel', { commentText: commentTextValue }, parentCommentId);
+			
+        }
+        
+		function cancelComment(cancelButton){
+			var divWithTextAreaSubmitAndCancelButtons = $(cancelButton).closest("div");
+			divWithTextAreaSubmitAndCancelButtons.hide();
+            
+			findFirstTextAreaIn(divWithTextAreaSubmitAndCancelButtons).val("");
+            
+			var commentDivAsJQueryElement = $(cancelButton).parent().parent();
+			findFirstReplyButtonIn(commentDivAsJQueryElement).show();
+			delete textAreaInfos[commentDivAsJQueryElement.attr("id")];
+		}
+        
+        function replyPressed(replyButton){
+			var replyButtonAsJQueryElement = $(replyButton);
+            replyButtonAsJQueryElement.parent().find("div[name=textareaandbuttonsdiv]").first().show();
+            replyButtonAsJQueryElement.hide();
+			textAreaInfos[replyButtonAsJQueryElement.parent().attr("id")] = "";
+		}
+	</script>   
+</head>
+
+<body>
+
+	
+</body>
+</html>

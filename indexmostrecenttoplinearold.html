@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Untitled Document</title>
+
+	<script src="/socket.io/socket.io.js"></script>
+    <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+    <script src="http://code.jquery.com/jquery-migrate-1.2.1.min.js"></script>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Untitled Document</title>
+    
+    
+    <script type="text/javascript">
+	
+        var socket = io.connect('/');
+		var commentsMap;
+		var rootCommentObject;
+		//var textAreaInfos = {};
+		
+        $(document).ready(
+			function() {
+				socket.on(
+					"updateChannel",
+					function (newComment){
+						$("#discussiondiv").prepend(getCommentHtml(newComment));
+					}
+				);
+			
+				$.getJSON("/getdiscussion",
+					function(data){
+						refreshComments(data);
+					}
+				);
+				
+			}
+		);
+		
+		var red = 220, green = 220, blue=240, commentPaddingPx=8;
+		//var rootCommentObject;
+		function getCommentHtml(commentObject){
+			//alert(JSON.stringify(commentObject));
+			//var textAreaText = textAreaInfos[commentObject._id];
+			//alert("rootcommentobject = " + rootCommenObject);
+			//alert("rootcommentobject._id = " + rootCommentObject._id);
+			return "<div style='margin-top:20px;background:rgb("+red+","+green+","+blue+");padding:"+commentPaddingPx+"px' id='" + commentObject._id + "'>" + ((commentObject.parentId==undefined || commentObject.parentId==rootCommentObject._id)? "" : "<button onclick='showParent(this)' data-parentid='" + commentObject.parentId + "'>&uarr;...</button>") + "<div class='text'>" + commentObject.commentText + "</div>" + (/*commentObject.commentText==""*/false? "" : "<button name='replyButton' onclick='replyPressed(this)'>Reply</button>") + "</div>";
+			
+		}
+		
+		
+		
+		function refreshComments(data)
+		{
+			//$("#discussiondiv").empty();
+		
+			commentsMap = {};
+			
+			data.sort(
+				function(a,b){
+					if(a.date < b.date)
+					  return  1;
+					if(a.date > b.date)
+					  return -1;
+					return 0;
+				}
+			);
+			
+			//alert(JSON.stringify(data));
+			
+			for(var i = 0; i<data.length; i++)
+			{
+				var commentObject = data[i];
+				commentsMap[commentObject._id] = commentObject;
+				var commentJQueryElement = $(getCommentHtml(commentObject));
+				if(commentObject.commentText==""){
+					rootCommentObject = commentObject;
+					emptyCommentJQueryElement = commentJQueryElement;
+				}
+				else{
+					//alert(JSON.stringify(commentJQueryElement));
+					$("#discussiondiv").append(commentJQueryElement);
+				}
+			}
+		}
+		
+		var emptyCommentJQueryElement;
+        
+        function findFirstTextAreaIn(jQueryElement)
+        {
+            return jQueryElement.find("textarea").first();
+        }
+        
+        function findFirstReplyButtonIn(jQueryElement)
+        {
+            return jQueryElement.find("button[name=replyButton]").first();
+        }
+        
+        function appendAndSaveComment(submitButton)
+        {	
+			//alert("Submit pressed");
+			var textAreaAndButtonsDiv = $(submitButton).parent();
+            var textArea = findFirstTextAreaIn(textAreaAndButtonsDiv);
+			var commentTextValue = textArea.val();
+			if(commentTextValue == ""){
+				alert("Please enter a comment");
+			}
+			if(commentTextValue != ""){
+			socket.emit('newCommentChannel', { commentText: commentTextValue, date: new Date().getTime(), parentId: $(submitButton).attr("name") });
+			
+			textAreaAndButtonsDiv.parent().remove();
+			}
+			//delete textAreaInfos[parentCommentId];
+        }
+        
+		function cancelComment(cancelButton){
+			$(cancelButton).parent().parent().remove();
+		}
+        
+        function replyPressed(replyButton){
+			//alert("hello");
+			var replyButtonAsJQueryElement = $(replyButton);
+			var comment = replyButtonAsJQueryElement.parent();
+			var replyDivAsHTML = "<div style='background:rgb("+red+","+green+","+blue+");padding:"+commentPaddingPx+"px'><div>" + comment.find(".text").text() + "</div><div><textarea class='textarea' cols='25' rows='5'></textarea><button onclick='appendAndSaveComment(this)' name='" + comment.attr("id") + "'>Submit</button><button onclick='cancelComment(this)'>Cancel</button></div></div>";
+			var replyDivAsJQueryElement = $(replyDivAsHTML);
+			$("#textareadiv").prepend(replyDivAsJQueryElement);
+			replyDivAsJQueryElement.find(".textarea").focus();
+		}
+		
+		function showParent(showParentCommentButton){
+			var parentId = $(showParentCommentButton).data("parentid");
+			var parentCommentObject = commentsMap[parentId];
+			var parentCommentHTML = getCommentHtml(parentCommentObject);
+			
+			var parentCommentDivAsJQueryElement = $(parentCommentHTML);
+			
+			parentCommentDivAsJQueryElement.css({"padding":"0px", "margin":"0px"});
+			
+			$(showParentCommentButton).hide();
+			
+			parentCommentDivAsJQueryElement.insertBefore(showParentCommentButton);
+		}
+	</script>   
+</head>
+
+<body>
+<div style="margin-left:300px;margin-right:300px;margin-top:40px;margin-bottom:40px" id="mainDiscussionDiv">
+<div id="textareadiv">
+</div>
+<div id="discussiondiv">
+</div>
+</div>
+
+	
+</body>
+</html>
