@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <title>Untitled Document</title>
+
+	<link href="discussionstyle.css" rel="stylesheet" type="text/css" />
+	<script src="http://code.jquery.com/jquery-1.9.1.js"></script>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+	<meta charset="utf-8" />
+	<link rel="stylesheet" href="http://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css" />	
+	<link rel="stylesheet" href="/resources/demos/style.css" />
+	
+	<script src="/socket.io/socket.io.js"></script>
+    <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+	<script src="http://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>
+    <script src="http://code.jquery.com/jquery-migrate-1.2.1.min.js"></script>
+	<script src="topics.js"></script>
+	<script src="jquery.cookie.js"></script>
+    <script type="text/javascript">
+	
+        var socket = io.connect("/");
+		var commentsMap;
+		var textAreaInfos = {};
+		var viewMode;
+		var userName;
+		var votingSliderValue;
+		var discussionMode;
+		
+        $(document).ready(
+			function() {
+				userName = $.cookie("userName");
+				if(userName==undefined)
+				{
+					$.cookie("userName", Math.random() + "", { expires: 30, path: '/' });
+					userName = $.cookie("userName");
+				}
+				
+				//$.removeCookie('userName', { path: '/' });
+				
+				socket.on(
+					"updateChannel",
+					function(discussion, newComment) { // NOW you have discussion, newComment
+						//alert("updateChannel, newComment is " + JSON.stringify(newComment));
+						if(viewMode=="discussion"){
+							if(discussionMode=="tree"){
+								$("#discussiondiv").show();
+								$("#votediv").hide();
+								$("#admindiv").hide();
+								$("#mainDiscussionDiv").hide();
+								refreshComments(discussion);
+								//alert("Refresh comments discussion called and " + JSON.stringify(discussion));
+							}
+							else if(discussionMode=="linearmostrecent"){
+								commentsMap[newComment._id] = newComment;
+								$("#discussiondiv").hide();
+								$("#mainDiscussionDiv").show();
+							
+								$("#votediv").hide();
+								$("#admindiv").hide();
+								//alert("getCommentHtml called linear");
+								$("#discussiondivlinear").prepend(getCommentHtmlForLinear(newComment));
+							}
+						}
+					}
+				);
+				
+				socket.on(
+					"viewModeChanged",
+					function(){
+						refreshPage();
+					}
+				);
+				
+				//Just populate the dropdown here:
+				$.getJSON(
+					"/getsessions",
+					function(sessionsArray){
+						//"sessionsArray" is just an array of session object, just use it to populate a drop-down or add a collection of buttons
+						//it has e.g. sessionsArray[0].topicNumber, sessionsArray[0].time
+						for(var i=0; i<sessionsArray.length; i++){
+							$('<option/>').val(sessionsArray[i]._id).html(sessionsArray[i].topicNumber + " " + new Date(sessionsArray[i].time) + " " + sessionsArray[i]._id).appendTo('#selectSessionList');
+						}
+					}
+				);
+				
+				$('<option/>').val("discussion").html("discussion").appendTo('#sessionViewingModeList');
+				$('<option/>').val("votingInfo").html("votingInfo").appendTo('#sessionViewingModeList');
+				
+				refreshPage();				
+			}
+		);
+		
+		function refreshPage(){
+			
+			$.getJSON(
+				"/getmodes",
+				function(modesObject){
+				
+					////alert("getJSON (getviewmode) succeded");
+					//TODO: 3 viewing modes: discussion, admin-session-start, vote
+					viewMode = modesObject.viewModeObject.viewMode;
+					discussionMode = modesObject.discussionModeObject.discussionMode;
+					
+					////alert("ViewMode is " + viewMode);
+					
+					if(viewMode=="discussion"){
+						//SHOW discussion div, HIDE other divs
+						if(discussionMode=="tree"){
+							$("#discussiondiv").show();
+						
+							$("#votediv").hide();
+							$("#admindiv").hide();
+							$("#mainDiscussionDiv").hide();
+						}
+						else if(discussionMode=="linearmostrecent"){
+							$("#discussiondiv").hide();
+							
+							$("#mainDiscussionDiv").show();
+						
+							$("#votediv").hide();
+							$("#admindiv").hide();
+						
+						
+						}
+						
+						$.getJSON(
+							"/getdiscussion",
+							function(data){
+								refreshComments(data);
+								//alert("refreshComments data called and " + JSON.stringify(data));
+							}
+						);
+					}
+					else if(viewMode=="admin"){
+						//SHOW admin div, hide others
+						$("#admindiv").show();
+						$("#votediv").hide();
+						$("#discussiondiv").hide();
+						$("#mainDiscussionDiv").hide();
+						
+						
+					}
+					else if(viewMode=="vote"){
+						//SHOW vote div, hide others
+						$("#discussiondiv").hide();
+						$("#mainDiscussionDiv").hide();
+						$("#admindiv").hide();
+						$("#votediv").show();
+						$("#votediv").empty();
+						insertVoteSubmitButton();
+						
+						
+						
+						////alert("Vote mode reached on client side!");
+						
+						$.getJSON(
+							"/getcurrenttopicnumber",
+							function(data){
+								
+								$("#votediv").prepend("<div>" + topics[data].alternatives[0] + "<p><label for='amount0'>Your score -5:Strongly disagree</label><label style='float:right'>+5: strongly agree</label>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<input type='text' id='amount0' style='border: 0; color: #f6931f; font-weight: bold;' /></p><div class='slider-range-max0'></div></div><p></p>");
+								$(".slider-range-max0").slider({
+									min: -5,
+									max: 5,
+									value: 0,
+									slide: function(event, ui) {
+										$( "#amount0" ).val( ui.value );
+										votingSliderValue=ui.value;
+									}	
+								});
+								$( "#amount0" ).val( $( "#slider-range-max0" ).slider( "value" ) );
+								votingSliderValue=$( "#amount0" ).val( $( "#slider-range-max0" ).slider( "value" ) );
+								$( "#amount0" ).val("0");
+								votingSliderValue=0;
+								
+								/*$("#votediv").append("<div>" + topics[data].alternatives[1] + "<p><label for='amount1'>Your score -5:Strongly disagree</label><label style='float:right'>+5: strongly agree</label><input type='text' id='amount1' style='border: 0; color: #f6931f; font-weight: bold;' /></p><div class='slider-range-max1'></div></div><p></p>");
+								$(".slider-range-max1").slider({
+									min: -5,
+									max: 5,
+									value: 0,
+									slide: function(event, ui) {
+										$( "#amount1" ).val( ui.value );
+									}	
+								});
+								$( "#amount1" ).val( $( "#slider-range-max1" ).slider( "value" ) );*/
+							}
+						);
+						
+						
+					}
+					else if(viewMode=="end"){
+						//show end div and hide others
+						$("#discussiondiv").hide();
+						$("#mainDiscussionDiv").hide();
+						$("#votediv").hide();
+						$("#admindiv").hide();
+						$("#enddiv").empty();
+						$("#enddiv").append("<h1>Thank you very much for your time. This is the end of the discussion</h1>");
+					}
+					else{
+						$("#enddiv").empty();	
+					
+					}
+				}
+			);
+		}
+		function submitAdminPasswordClick(){
+			if($("#password").val()=="lotnal81"){
+				$("#sessionButtonsDiv").css("visibility", "visible");
+				$("#dropDownsDiv").css("visibility", "visible");
+				$("#dropDownDivDiscussionChoice").css("visibility", "visible");
+			}
+		}
+		function discussionChoiceSelected(elementSelected){
+			var discussionChoice = elementSelected.options[elementSelected.selectedIndex].value;
+			socket.emit("changeDiscussionMode", {discussionMode:discussionChoice});
+		}
+		/*
+		function submitDiscussionChoice(){
+			
+			if($("#discussionChoiceSelect").val=="Tree discussion"){
+				discussionMode=="tree";
+			}
+			else if($("#discussionChoiceSelect").val=="Most recent at top linear discussion"){
+				discussionMode=="linearmostrecent";
+			}
+		}*/
+		
+		function insertVoteSubmitButton(){
+			//$("#votediv").append("Enter a username: <input type='text' id='username'/><p></p>");
+			$("#votediv").append("<button onclick='submitVote(this)'>Submit vote</button>");
+		}
+		function submitVote(submitVoteButton){
+			/*if(($("#username")).val()==""){
+				//alert("Please enter a user name");
+			}
+			userName=($("#username")).val();
+			*/
+			//alert("voting slider value = " + votingSliderValue);
+			$(submitVoteButton).hide();
+			
+			socket.emit('votingChannel', {userName:userName, score:votingSliderValue});
+			//alert("submit vote entered");
+		}
+		
+		var red = 220, green = 220, blue=240, commentPaddingPx=8;
+		
+		function getCommentHtmlForLinear(commentObject){
+			//alert(JSON.stringify(commentObject) + " inside getCommentHtml linear");
+			//alert("Comment id = " + commentObject._id);
+			return "<div style='margin-top:20px;background:rgb("+red+","+green+","+blue+");padding:"+commentPaddingPx+"px' id='" + commentObject._id + "'>" + ((commentObject.parentId==undefined || commentObject.parentId==rootCommentObject._id)? "" : "<button onclick='showParent(this)' data-parentid='" + commentObject.parentId + "'>&uarr;...</button>") + "<div class='text'>" + commentObject.commentText + "</div>" + (/*commentObject.commentText==""*/false? "" : "<button name='replyButton' onclick='replyPressed(this)'>Reply</button>") + "</div>";
+		}
+		
+		function getCommentHtml(actualCommentString, id, buttonName, showReplyButton){
+			//alert("tree getComment html actual comment string = " + actualCommentString );
+			var textAreaText = textAreaInfos[id];
+			return "<div style='margin-left:50px' id='" + id + "'>" + actualCommentString + (showReplyButton==true ? "<button name='replyButton' onclick='replyPressed(this)'>" + buttonName + "</button>" : "") + "<div name='textareaandbuttonsdiv' " + (textAreaText!=undefined?"":"style='display:none'") + "><textarea name='comment' cols='25' rows='5'>" + (textAreaText==undefined?"":textAreaText) + "</textarea><button onclick='appendAndSaveComment(this)' id='submitButton'>submit</button><button onclick='cancelComment(this)'>Cancel</button></div></div>";
+		}
+		
+		
+		
+		function hideAdminSectionClick(){
+			$("#adminSection").hide();
+			
+		}
+		
+		function showAdminClicked(){
+			
+			$("#adminSection").show();
+			//$("#password").val().delete();
+		
+		}
+		
+		function sessionClick(buttonClicked){
+			var topicNo = $(buttonClicked).text() - 1;
+			////alert("Sending topic number " + topicNo + " to server");
+			var alternatives = topics[topicNo].alternatives;
+			socket.emit("startNewSessionChannel", {topicNumber:topicNo}, alternatives);
+			$("#adminSection").hide();
+			$("#enddiv").empty();
+		}
+		
+		var rootCommentObject;
+		
+		function refreshComments(data)
+		{
+			//alert("function refreshcomments entered");
+			if(discussionMode=="tree"){
+				$("#discussiondiv").empty();
+				//alert("discussiondiv emptied");
+			
+				commentsMap = {};
+			
+				for(var i = 0; i<data.length; i++)
+				{
+					var commentObject = data[i];
+					////alert("entering for loop. Comment object= " + commentObject);
+					commentsMap[commentObject._id] = commentObject;
+					if(commentObject.commentText==""){
+						rootCommentObject = commentObject;
+					}
+				}
+				//alert("4wf3");
+				createCommentHtmlAndAppendToParent(rootCommentObject, $("#discussiondiv"), false);
+				
+			}
+			else if(discussionMode=="linearmostrecent"){
+				$("#discussiondivlinear").empty();
+			
+				commentsMap = {};
+				
+				data.sort(
+					function(a,b){
+						if(a.date < b.date)
+						  return  1;
+						if(a.date > b.date)
+						  return -1;
+						return 0;
+					}
+				);
+				
+				//alert("Whole discussion: " + JSON.stringify(data));
+				
+				for(var i = 0; i<data.length; i++)
+				{
+					var commentObject = data[i];
+					if(commentObject.commentText==""){
+						rootCommentObject = commentObject;
+					}
+				}
+				
+				for(var i = 0; i<data.length; i++)
+				{
+					var commentObject = data[i];
+					commentsMap[commentObject._id] = commentObject;
+					//alert("getCommentHtml called inside linear for loop");
+					var commentJQueryElement = $(getCommentHtmlForLinear(commentObject));
+					
+					if(commentObject.commentText==""){
+						emptyCommentJQueryElement = commentJQueryElement;
+					}
+					else{
+						//alert("Entered appending of comment to discussiondivlinear");
+						////alert(JSON.stringify(commentJQueryElement));
+						$("#discussiondivlinear").append(commentJQueryElement);
+					}
+				}
+			}
+		}
+		
+		var emptyCommentJQueryElement;
+			
+		function findFirstTextAreaIn(jQueryElement)
+		{
+			return jQueryElement.find("textarea").first();
+		}
+		
+		function findFirstReplyButtonIn(jQueryElement)
+		{
+			return jQueryElement.find("button[name=replyButton]").first();
+		}
+		
+		function appendAndSaveCommentLinear(submitButton)
+		{	
+			////alert("Submit pressed");
+			var textAreaAndButtonsDiv = $(submitButton).parent();
+			var textArea = findFirstTextAreaIn(textAreaAndButtonsDiv);
+			var commentTextValue = textArea.val();
+			if(commentTextValue == ""){
+				//alert("Please enter a comment");
+			}
+			if(commentTextValue != ""){
+				//alert("Trying to send a new comment! Parent id is " + $(submitButton).attr("name"));
+				socket.emit('newCommentChannel', { commentText: commentTextValue, date: new Date().getTime()}, $(submitButton).attr("name"));
+			
+				textAreaAndButtonsDiv.parent().remove();
+			}
+			//delete textAreaInfos[parentCommentId];
+		}
+		
+		function cancelCommentLinear(cancelButton){
+			$(cancelButton).parent().parent().remove();
+		}
+		
+		function showParent(showParentCommentButton){
+			var parentId = $(showParentCommentButton).data("parentid");
+			var parentCommentObject = commentsMap[parentId];
+			//alert("getCommentHtml called inside showParent");
+			var parentCommentHTML = getCommentHtmlForLinear(parentCommentObject);
+			
+			var parentCommentDivAsJQueryElement = $(parentCommentHTML);
+			
+			parentCommentDivAsJQueryElement.css({"padding":"0px", "margin":"0px"});
+			
+			$(showParentCommentButton).hide();
+			
+			parentCommentDivAsJQueryElement.insertBefore(showParentCommentButton);
+		}
+		
+		function createCommentHtmlAndAppendToParent(commentObject, parentJQueryElementToAppendTo, showReplyButton)
+		{
+			//alert("createCommentHtmlAndAppendToParent function entered. Comment object = " + JSON.stringify(commentObject));
+			var commentJQueryElement = $(getCommentHtml(commentObject.commentText, commentObject._id, "Reply", showReplyButton));
+			
+			var textArea = findFirstTextAreaIn(commentJQueryElement);
+			textArea.keyup(
+				function(){
+					textAreaInfos[commentObject._id] = textArea.val();
+				}
+			);
+			textArea.change(
+				function(){
+					textAreaInfos[commentObject._id] = textArea.val();
+				}
+			);
+			textArea.on(
+				"paste cut",
+				null,
+				function(e){
+					setTimeout(
+						function(){
+							textAreaInfos[commentObject._id] = textArea.val();
+						},
+						0
+					);
+				}	
+			);
+			
+			parentJQueryElementToAppendTo.append(commentJQueryElement);
+			
+			if(commentObject.replyIds != undefined)
+			{
+				for(var i = 0; i<commentObject.replyIds.length; i++){
+					var replyId = commentObject.replyIds[i];
+					createCommentHtmlAndAppendToParent(commentsMap[replyId], commentJQueryElement, true);
+				}
+			}
+		}		
+        
+        function addCommentPressed(commentButton){
+            $(commentButton).parent().append($(textareaandbuttonsdiv).show());
+            $(commentButton).hide();
+        }
+        
+        function findFirstTextAreaIn(jQueryElement)
+        {
+            return jQueryElement.find("textarea").first();
+        }
+        
+        function findFirstReplyButtonIn(jQueryElement)
+        {
+            return jQueryElement.find("button[name=replyButton]").first();
+        }
+        
+		function appendAndSaveComment(submitButton)
+		{
+			//TODO: move some of this code to the recursive "appendComment" function
+			/*
+			var textAreaAndButtonsDiv = $(submitButton).parent();
+			var textArea = findFirstTextAreaIn(textAreaAndButtonsDiv);
+			var commentText = textArea.val();
+			var commentHtml = getCommentHtml(commentText, "Reply");
+			
+			var commentAsJQueryElement = $($.parseHTML(commentHtml));
+			
+			commentAsJQueryElement.insertAfter($(submitButton).parent());
+			
+			textArea.val("");
+			
+			textAreaAndButtonsDiv.hide();
+			
+			showFirstReplyButtonInParentsParent(submitButton);
+			*/
+			
+			var textAreaAndButtonsDiv = $(submitButton).parent();
+			var parentCommentId = textAreaAndButtonsDiv.parent().attr("id");
+			////alert("Parent comment id being sent to server is " + parentCommentId);
+			var textArea = findFirstTextAreaIn(textAreaAndButtonsDiv);
+			var commentTextValue = textArea.val();
+			if(commentTextValue==""){
+				//alert("Please enter comment");
+			}
+			if(commentTextValue!=""){
+			socket.emit('newCommentChannel', { commentText: commentTextValue }, parentCommentId);
+			////alert(commentTextValue + "," + parentCommentId);
+			delete textAreaInfos[parentCommentId];
+			}
+		}
+	
+	
+		function cancelComment(cancelButton){
+			var divWithTextAreaSubmitAndCancelButtons = $(cancelButton).closest("div");
+			divWithTextAreaSubmitAndCancelButtons.hide();
+			
+			findFirstTextAreaIn(divWithTextAreaSubmitAndCancelButtons).val("");
+			
+			var commentDivAsJQueryElement = $(cancelButton).parent().parent();
+			findFirstReplyButtonIn(commentDivAsJQueryElement).show();
+			delete textAreaInfos[commentDivAsJQueryElement.attr("id")];
+		}
+		
+		function replyPressed(replyButton){
+			if(discussionMode=="tree"){
+				var replyButtonAsJQueryElement = $(replyButton);
+				replyButtonAsJQueryElement.parent().find("div[name=textareaandbuttonsdiv]").first().show();
+				replyButtonAsJQueryElement.hide();
+				textAreaInfos[replyButtonAsJQueryElement.parent().attr("id")] = "";
+			}
+			else if(discussionMode=="linearmostrecent"){
+				////alert("hello");
+				var replyButtonAsJQueryElement = $(replyButton);
+				var comment = replyButtonAsJQueryElement.parent();
+				var replyDivAsHTML = "<div style='background:rgb("+red+","+green+","+blue+");padding:"+commentPaddingPx+"px'><div>" + comment.find(".text").text() + "</div><div><textarea class='textarea' cols='25' rows='5'></textarea><button onclick='appendAndSaveCommentLinear(this)' name='" + comment.attr("id") + "'>Submit</button><button onclick='cancelCommentLinear(this)'>Cancel</button></div></div>";
+				var replyDivAsJQueryElement = $(replyDivAsHTML);
+				$("#textareadiv").prepend(replyDivAsJQueryElement);
+				replyDivAsJQueryElement.find(".textarea").focus();
+			}
+		}
+			
+		var sessionSelectionViewingMode = "discussion";
+		
+		function sessionSelected(selectElement){
+			var sessionId = selectElement.options[selectElement.selectedIndex].value;
+			
+			if(sessionSelectionViewingMode=="discussion")
+			{
+				socket.emit("selectSessionAndGoToDiscussion", sessionId);
+			}
+			else if(sessionSelectionViewingMode=="votingInfo"){
+				$.getJSON(
+					"/getvotinginfo?sessionId=" + sessionId,
+					function(){
+						window.location="/votinginfo.xlsx";
+					}
+					
+				);
+			}
+		}
+		
+		function sessionViewingModeSelected(selectElement){
+			sessionSelectionViewingMode = selectElement.options[selectElement.selectedIndex].value;
+		}
+	</script>   
+</head>
+
+<body style="background-color:rgb(255,255,105)">
+<div>
+
+<button onclick="showAdminClicked()">ADMIN</button>
+<div id="adminSection" style="display:none">
+<div>
+<table width="200" border="0" >
+  <tr>
+    <td>Password</td>
+    <td><input type="password" name="password" id="password" autocomplete="off"/></td>
+  </tr>
+</table>
+<button onclick="submitAdminPasswordClick()">Submit</button><button onclick="hideAdminSectionClick()">Cancel</button>
+</div>
+<p></p>
+<div id="sessionButtonsDiv" style = "visibility:hidden;">
+<button onclick="sessionClick(this)">1</button>
+<button onclick="sessionClick(this)">2</button>
+<button onclick="sessionClick(this)">3</button>
+</div>
+<div id="dropDownDivDiscussionChoice" style = "visibility:hidden;">
+<select id="discussionChoiceSelect" onchange="discussionChoiceSelected(this)">
+  <option value="tree">Tree discussion</option>
+  <option value="linearmostrecent">Most recent at top linear discussion</option>
+</select> 
+</div>
+<div id="dropDownsDiv" style = "visibility:hidden;">
+<select id="sessionViewingModeList" onchange="sessionViewingModeSelected(this)"></select>
+<select id="selectSessionList" onchange="sessionSelected(this)"></select>
+</div>
+
+
+</div>
+</div>
+
+<div id="admindiv">
+
+</div>
+
+<div id="discussiondiv">
+</div>
+
+<div style="margin-left:300px;margin-right:300px;margin-top:40px;margin-bottom:40px" id="mainDiscussionDiv">
+<div id="textareadiv">
+</div>
+<div id="discussiondivlinear">
+</div>
+</div>
+
+
+
+<p></p>
+
+<div id="votediv">
+
+</div>
+<div id="enddiv">
+
+</div>
+<div>
+</div>
+
+	
+</body>
+</html>

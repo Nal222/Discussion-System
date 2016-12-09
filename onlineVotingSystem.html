@@ -1,0 +1,49 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script src="/socket.io/socket.io.js"></script>
+    <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+<script src="http://code.jquery.com/jquery-migrate-1.2.1.min.js"></script>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>Online Voting</title>
+<script src="/session.js"/>
+<script type="text/javascript">
+function adminClick(){
+	if($("#password").val()=="lotnal81"){
+		$("#sessionButtonsDiv").css("visibility", "visible");
+	
+	}
+}
+function sessionClick(buttonClicked){
+
+	var sessionNo = $(buttonClicked).text;
+	var alternatives = sessions[sessionNo-1].alternatives;
+
+	for(var i=0; i< alternatives.length; i++){
+
+		socket.emit('sessionChannel', {commentText: alternatives[i], sessionNumber: sessionNo}
+	}
+}
+
+</script>
+</head>
+
+<body>
+<div id="loginDiv">
+<p>ADMIN </p>
+<table width="200" border="0">
+  <tr>
+    <td>Password</td>
+    <td><input type="password" name="password" id="password" /></td>
+  </tr>
+</table>
+<button id="submitButton" onclick="adminClick()">Submit</button>
+</div>
+<p></p>
+<div id="sessionButtonsDiv" style = "visibility:hidden;">
+<button onclick="sessionClick(this)">1</button>
+<button onclick="sessionClick(this)">2</button>
+<button onclick="sessionClick(this)">3</button>
+</div>
+</body>
+</html>
