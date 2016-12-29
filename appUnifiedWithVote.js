@@ -3,7 +3,7 @@ var
 	app = express(),
 	server = require('http').createServer(app),
 	io = require('socket.io').listen(server),
-	mongodb = require("mongodb"),
+	MongoClient = require('mongodb').MongoClient,
 	excelbuilder = require('msexcel-builder'),
 	numberOfParticipants = 1,
 	interval = 0.3*60*1000,
@@ -173,7 +173,7 @@ function doStuffOnViewModeCollection(theFunction){
 }
 
 function doStuffOnCollection(collectionName, theFunction){
-	mongoserver = new mongodb.Server("127.0.0.1", mongodb.Connection.DEFAULT_PORT, {poolSize:10});
+	//mongoserver = new mongodb.Server("127.0.0.1", mongodb.Connection.DEFAULT_PORT, {poolSize:10});
 					
 	var CustomPKFactory = {
 		counter:0,
@@ -185,9 +185,10 @@ function doStuffOnCollection(collectionName, theFunction){
 	}
 
 	//db_connector = new mongodb.Db("db", mongoserver, {pk: CustomPKFactory});
-	db_connector = new mongodb.Db("db", mongoserver, {w:1});
-	
-	db_connector.open(
+	//db_connector = new mongodb.Db("db", mongoserver, {w:1});
+
+	MongoClient.connect(
+		'mongodb://192.168.1.246/Discussion',
 		function(err, db){
 			db.createCollection(
 				collectionName,
